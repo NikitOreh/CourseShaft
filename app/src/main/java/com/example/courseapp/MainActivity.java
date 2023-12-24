@@ -1,10 +1,11 @@
 package com.example.courseapp;
 
 import android.os.Bundle;
-import android.util.Log;
+import android.text.TextUtils;
 import android.widget.ListView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -24,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private CustomArrayAdapter adapter;
 
     private List<ListItemClass> arrayList;
+    private List<ListItemClass> originalList; // Добавим переменную для хранения исходного списка
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,20 +35,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void init() {
-        listView= findViewById(R.id.listView);
-        arrayList=new ArrayList<>();
-        adapter= new CustomArrayAdapter(this,R.layout.list_item_1,arrayList,getLayoutInflater());
+        listView = findViewById(R.id.listView);
+        arrayList = new ArrayList<>();
+        adapter = new CustomArrayAdapter(this, R.layout.list_item_1, arrayList, getLayoutInflater());
         listView.setAdapter(adapter);
-        runnable = new Runnable() {
+
+        SearchView searchView = findViewById(R.id.search_view);
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                adapter.getFilter().filter(newText.toLowerCase().trim());
+                if (TextUtils.isEmpty(newText)) {
+                    // Если текст пустой, восстанавливаем исходный список
+                    arrayList.clear();
+                    arrayList.addAll(originalList);
+                    adapter.notifyDataSetChanged(); // Обновляем список
+                }
+                return true;
+            }
+        });
+
+        secThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 getWeb();
             }
-        };
-        secThread = new Thread(runnable);
+        });
         secThread.start();
-
-
     }
 
     private void getWeb() {
@@ -57,8 +77,7 @@ public class MainActivity extends AppCompatActivity {
             Elements elements_from_table = our_table.children();
             Element dollar = elements_from_table.get(0);
             Elements dollar_elements = dollar.children();
-            Log.d("MyLog","Tbody size : " +dollar_elements.get(1).text() );
-            for(int i = 0;i<our_table.childrenSize();i++){
+            for (int i = 0; i < our_table.childrenSize(); i++) {
                 ListItemClass items = new ListItemClass();
                 items.setData_1(our_table.children().get(i).child(1).text());
                 items.setData_2(our_table.children().get(i).child(2).text());
@@ -66,15 +85,17 @@ public class MainActivity extends AppCompatActivity {
                 items.setData_4(our_table.children().get(i).child(4).text());
                 arrayList.add(items);
             }
+            // Сохраняем исходный список данных
+            originalList = new ArrayList<>(arrayList);
+
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
                     adapter.notifyDataSetChanged();
-
                 }
             });
-        } catch (IOException e) {
+        } catch (IOException | IndexOutOfBoundsException | NullPointerException e) {
             e.printStackTrace();
         }
     }
-    }
+}
